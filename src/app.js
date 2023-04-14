@@ -62,14 +62,14 @@ app.post("/participants", async (req, res) => {
     } catch (error){
         res.status(500).send(error.message);
     }
-})
+});
 
-app.post("/messages", async (req, res) =>{
+app.post("/messages", async (req, res) => {
     const { to, text, type } = req.body;
-    const from = req.headers.user;
+    const user = req.headers.user;
     
     const message = {
-        from,
+        from: user,
         to,
         text,
         type,
@@ -88,7 +88,7 @@ app.post("/messages", async (req, res) =>{
     } catch (error){
         res.status(500).send(error.message);   
     }
-})
+});
 
 app.get("/participants", async (req, res) => {
     try{
@@ -125,7 +125,20 @@ app.get("/messages", async (req, res) => {
     } catch (error){
         res.status(500).send(error.message);
     }
-})
+});
+
+app.post("/status", async (req, res) => {
+    const user = req.headers.user;
+    if(!user) return res.sendStatus(404);
+
+    try{
+        const result = await db.collection('participants').updateOne({name: user}, {$set: {from: user, lastStatus: Date.now()}});
+        if(result.modifiedCount === 0) return res.sendStatus(404);
+        res.sendStatus(200);
+    } catch (error){
+        res.status(500).send(error.message);
+    }
+});
 
 const PORT = 5000;
 app.listen(PORT, () => console.log(`server running on port ${PORT}`));

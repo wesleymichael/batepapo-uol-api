@@ -37,6 +37,8 @@ const schemaMessage = Joi.object({
     time: Joi.required(),
 });
 
+const schemaLimit = Joi.string().regex(/^[1-9][0-9]*$/);
+
 //EndPoints
 app.post("/participants", async (req, res) => {
     const {name} = req.body;
@@ -96,6 +98,34 @@ app.get("/participants", async (req, res) => {
         res.status(500).send(error.message);
     }
 });
+
+app.get("/messages", async (req, res) => {
+    const user = req.headers.user;
+    const { limit } = req.query;
+
+    const {error} = schemaLimit.validate(limit);
+    if(error) return res.status(422).send("Valor inválido para o limite de mensagens.");
+
+    try{
+        const conditions = {
+            $or: [
+                {type: "message"},
+                {to: "Todos"},
+                {$and: [
+                    {type: "private_message"}, {to: user}
+                ]},
+                {$and: [
+                    {type: "private_message"}, {from: user}
+                ]},
+            ]
+        };
+        const messages = limit ? await db.collection('messages').find(conditions).limit(Number(limit)).toArray()
+                            : await db.collection('messages').find(conditions).toArray();
+        res.send(messages);
+    } catch (error){
+        res.status(500).send(error.message);
+    }
+})
 
 const PORT = 5000;
 app.listen(PORT, () => console.log(`server running on port ${PORT}`));

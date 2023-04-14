@@ -29,15 +29,21 @@ const schemaName = Joi.object({
         .required(),
 });
 
+const schemaMessage = Joi.object({
+    from: Joi.string().required(),
+    to: Joi.string().min(1).required(),
+    text: Joi.string().min(1).required(),
+    type: Joi.any().valid('message', 'private_message').required(),
+    time: Joi.required(),
+});
+
 //EndPoints
 app.post("/participants", async (req, res) => {
     const {name} = req.body;
 
-    const validation = schemaName.validate({name});
-    if(validation.error){
-        res.status(422).send(validation.error.details[0].message);
-        return;
-    }
+    const {error} = schemaName.validate({name});
+    if(error) return res.status(422).send(error.details[0].message);
+
     try{
         const nameUsed = await db.collection('participants').findOne({name: name});
         if( nameUsed ) return res.status(409).send('Nome de usuário já existe.');
@@ -51,8 +57,40 @@ app.post("/participants", async (req, res) => {
             time: dayjs().format('HH:mm:ss')
         });
         res.sendStatus(201);
-    } catch (err){
-        res.status(500).send(err.message);
+    } catch (error){
+        res.status(500).send(error.message);
+    }
+})
+
+app.post("/messages", async (req, res) =>{
+    const { to, text, type } = req.body;
+    const from = req.headers.user;
+    
+    const message = {
+        from,
+        to,
+        text,
+        type,
+        time: dayjs().format('HH:mm:ss')
+    };
+    const {error} = schemaMessage.validate(message);
+    if(error) return res.status(422).send(error.details[0].message);
+
+    try{
+
+        const [sender, receiver] = await Promise.all([
+            db.collection('participants').findOne({name: from}),
+            db.collection('participants').findOne({name: to})
+        ]);
+        
+        if(!receiver) return res.status(422).send("Destinatário não encontrado.");
+
+        if(!sender) return res.status(422).send("Usuário não encontrado.");
+
+        await db.collection('messages').insertOne(message);
+        res.sendStatus(201);
+    } catch (error){
+        res.status(500).send(error.message);   
     }
 })
 
@@ -60,8 +98,8 @@ app.get("/participants", async (req, res) => {
     try{
         const participats = await db.collection('participants').find().toArray();
         res.send(participats);
-    } catch (err){
-        res.status(500).send(err.message);
+    } catch (error){
+        res.status(500).send(error.message);
     }
 });
 

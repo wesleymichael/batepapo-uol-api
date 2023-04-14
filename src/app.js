@@ -31,9 +31,9 @@ const schemaName = Joi.object({
 
 //EndPoints
 app.post("/participants", async (req, res) => {
-    const name = req.body;
+    const {name} = req.body;
 
-    const validation = schemaName.validate(name);
+    const validation = schemaName.validate({name});
     if(validation.error){
         res.status(422).send(validation.error.details[0].message);
         return;
@@ -42,7 +42,7 @@ app.post("/participants", async (req, res) => {
         const nameUsed = await db.collection('participants').findOne({name: name});
         if( nameUsed ) return res.status(409).send('Nome de usuário já existe.');
 
-        await db.collection('participants').insertOne( {name: name, lastStatus: Date.now()} );
+        await db.collection('participants').insertOne( {name, lastStatus: Date.now()} );
         await db.collection('messages').insertOne({
             from: name,
             to: 'Todos',
@@ -55,6 +55,15 @@ app.post("/participants", async (req, res) => {
         res.status(500).send(err.message);
     }
 })
+
+app.get("/participants", async (req, res) => {
+    try{
+        const participats = await db.collection('participants').find().toArray();
+        res.send(participats);
+    } catch (err){
+        res.status(500).send(err.message);
+    }
+});
 
 const PORT = 5000;
 app.listen(PORT, () => console.log(`server running on port ${PORT}`));

@@ -14,17 +14,17 @@ dotenv.config();
 
 //Connection to mongodb
 const mongoClient = new MongoClient(process.env.DATABASE_URL);
-try{
+try {
     await mongoClient.connect();
     console.log("MongoDB is connected");
-} catch (err){
+} catch (err) {
     console.log(err.message);
 }
 const db = mongoClient.db();
 
 //Validation
 const schemaName = Joi.object({
-    name:  Joi.string()
+    name: Joi.string()
         .min(1)
         .required(),
 });
@@ -41,16 +41,16 @@ const schemaLimit = Joi.string().regex(/^[1-9][0-9]*$/);
 
 //EndPoints
 app.post("/participants", async (req, res) => {
-    const {name} = req.body;
+    const { name } = req.body;
 
-    const {error} = schemaName.validate({name});
-    if(error) return res.status(422).send(error.details[0].message);
+    const { error } = schemaName.validate({ name });
+    if (error) return res.status(422).send(error.details[0].message);
 
-    try{
-        const nameUsed = await db.collection('participants').findOne({name: name});
-        if( nameUsed ) return res.status(409).send('Nome de usuário já existe.');
+    try {
+        const nameUsed = await db.collection('participants').findOne({ name: name });
+        if (nameUsed) return res.status(409).send('Nome de usuário já existe.');
 
-        await db.collection('participants').insertOne( {name, lastStatus: Date.now()} );
+        await db.collection('participants').insertOne({ name, lastStatus: Date.now() });
         await db.collection('messages').insertOne({
             from: name,
             to: 'Todos',
@@ -59,42 +59,42 @@ app.post("/participants", async (req, res) => {
             time: dayjs().format('HH:mm:ss')
         });
         res.sendStatus(201);
-    } catch (error){
+    } catch (error) {
         res.status(500).send(error.message);
     }
 });
 
 app.post("/messages", async (req, res) => {
     const { to, text, type } = req.body;
-    const user = req.headers.user;
-    
+    const from = req.headers.user;
+
     const message = {
-        from: user,
+        from,
         to,
         text,
         type,
         time: dayjs().format('HH:mm:ss')
     };
-    const {error} = schemaMessage.validate(message);
-    if(error) return res.status(422).send(error.details[0].message);
+    const { error } = schemaMessage.validate(message);
+    if (error) return res.status(422).send(error.details[0].message);
 
-    try{
-        const sender = await db.collection('participants').findOne({name: from});
+    try {
+        const sender = await db.collection('participants').findOne({ name: from });
 
-        if(!sender) return res.status(422).send("Usuário não encontrado.");
+        if (!sender) return res.status(422).send("Usuário não encontrado.");
 
         await db.collection('messages').insertOne(message);
         res.sendStatus(201);
-    } catch (error){
-        res.status(500).send(error.message);   
+    } catch (error) {
+        res.status(500).send(error.message);
     }
 });
 
 app.get("/participants", async (req, res) => {
-    try{
+    try {
         const participats = await db.collection('participants').find().toArray();
         res.send(participats);
-    } catch (error){
+    } catch (error) {
         res.status(500).send(error.message);
     }
 });
@@ -103,42 +103,64 @@ app.get("/messages", async (req, res) => {
     const user = req.headers.user;
     const { limit } = req.query;
 
-    const {error} = schemaLimit.validate(limit);
-    if(error) return res.status(422).send("Valor inválido para o limite de mensagens.");
+    const { error } = schemaLimit.validate(limit);
+    if (error) return res.status(422).send("Valor inválido para o limite de mensagens.");
 
-    try{
+    try {
         const conditions = {
             $or: [
-                {type: "message"},
-                {to: "Todos"},
-                {$and: [
-                    {type: "private_message"}, {to: user}
-                ]},
-                {$and: [
-                    {type: "private_message"}, {from: user}
-                ]},
+                { type: "message" },
+                { to: "Todos" },
+                {
+                    $and: [
+                        { type: "private_message" }, { to: user }
+                    ]
+                },
+                {
+                    $and: [
+                        { type: "private_message" }, { from: user }
+                    ]
+                },
             ]
         };
         const messages = limit ? await db.collection('messages').find(conditions).limit(Number(limit)).toArray()
-                            : await db.collection('messages').find(conditions).toArray();
+            : await db.collection('messages').find(conditions).toArray();
         res.send(messages);
-    } catch (error){
+    } catch (error) {
         res.status(500).send(error.message);
     }
 });
 
 app.post("/status", async (req, res) => {
     const user = req.headers.user;
-    if(!user) return res.sendStatus(404);
+    if (!user) return res.sendStatus(404);
 
-    try{
-        const result = await db.collection('participants').updateOne({name: user}, {$set: {from: user, lastStatus: Date.now()}});
-        if(result.modifiedCount === 0) return res.sendStatus(404);
+    try {
+        const result = await db.collection('participants').updateOne({ name: user }, { $set: { from: user, lastStatus: Date.now() } });
+        if (result.modifiedCount === 0) return res.sendStatus(404);
         res.sendStatus(200);
-    } catch (error){
+    } catch (error) {
         res.status(500).send(error.message);
     }
 });
+
+setInterval(async () => {
+    const condition = {
+        lastStatus: { $lt: Date.now() - 1000000 }
+    };
+    const usersOff = await db.collection('participants').find(condition).toArray();
+
+    usersOff.forEach(async (user) => {
+        await db.collection('participants').deleteOne({ name: user.name });
+        await db.collection('messages').insertOne({
+            from: user.name,
+            to: 'Todos',
+            text: 'entra na sala...',
+            type: 'status',
+            time: dayjs().format('HH:mm:ss')
+        });
+    });
+}, 15000);
 
 const PORT = 5000;
 app.listen(PORT, () => console.log(`server running on port ${PORT}`));

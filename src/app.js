@@ -123,8 +123,8 @@ app.get("/messages", async (req, res) => {
                 },
             ]
         };
-        const messages = limit ? await db.collection('messages').find(conditions).limit(Number(limit)).toArray()
-            : await db.collection('messages').find(conditions).toArray();
+        const messages = limit ? await db.collection('messages').find(conditions).sort({_id:-1}).limit(Number(limit)).toArray()
+                            : await db.collection('messages').find(conditions).sort({_id:-1}).toArray();
         res.send(messages);
     } catch (error) {
         res.status(500).send(error.message);
@@ -165,18 +165,22 @@ setInterval(async () => {
     const condition = {
         lastStatus: { $lt: Date.now() - 10000 }
     };
-    const usersOff = await db.collection('participants').find(condition).toArray();
+    try{
+        const usersOff = await db.collection('participants').find(condition).toArray();
 
-    usersOff.forEach(async (user) => {
-        await db.collection('participants').deleteOne({ name: user.name });
-        await db.collection('messages').insertOne({
-            from: user.name,
-            to: 'Todos',
-            text: 'entra na sala...',
-            type: 'status',
-            time: dayjs().format('HH:mm:ss')
+        usersOff.forEach(async (user) => {
+            await db.collection('participants').deleteOne({ name: user.name });
+            await db.collection('messages').insertOne({
+                from: user.name,
+                to: 'Todos',
+                text: 'sai na sala...',
+                type: 'status',
+                time: dayjs().format('HH:mm:ss')
+            });
         });
-    });
+    } catch (error){
+        console.log(error);
+    }
 }, 15000);
 
 const PORT = 5000;

@@ -1,6 +1,6 @@
 import express from "express";
 import cors from "cors";
-import { MongoClient } from "mongodb";
+import { MongoClient, ObjectId } from "mongodb";
 import dotenv from "dotenv";
 import Joi from "joi";
 import dayjs from "dayjs";
@@ -144,9 +144,26 @@ app.post("/status", async (req, res) => {
     }
 });
 
+app.delete("/messages/:ID_DA_MENSAGEM", async (req, res) => {
+    const from = req.headers.user;
+    const id = req.params.ID_DA_MENSAGEM;
+    try{
+        const message = await db.collection('messages').findOne({ _id: new ObjectId(id)});
+
+        if(!message) return res.status(404).send('Mensagem não encontrada');
+
+        if(from !== message.from) return res.status(401).send('Usuário não autorizado a deletar mensagem');
+        
+        await db.collection('messages').deleteOne({ _id: new ObjectId(id)});
+        res.sendStatus(200);
+    } catch (error){
+        res.status(500).send(error.message);
+    }
+});
+
 setInterval(async () => {
     const condition = {
-        lastStatus: { $lt: Date.now() - 1000000 }
+        lastStatus: { $lt: Date.now() - 10000 }
     };
     const usersOff = await db.collection('participants').find(condition).toArray();
 

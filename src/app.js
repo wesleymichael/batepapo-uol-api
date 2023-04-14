@@ -77,13 +77,7 @@ app.post("/messages", async (req, res) =>{
     if(error) return res.status(422).send(error.details[0].message);
 
     try{
-
-        const [sender, receiver] = await Promise.all([
-            db.collection('participants').findOne({name: from}),
-            db.collection('participants').findOne({name: to})
-        ]);
-        
-        if(!receiver) return res.status(422).send("Destinatário não encontrado.");
+        const sender = await db.collection('participants').findOne({name: from});
 
         if(!sender) return res.status(422).send("Usuário não encontrado.");
 

@@ -123,9 +123,10 @@ app.get("/messages", async (req, res) => {
                 },
             ]
         };
-        const messages = limit ? await db.collection('messages').find(conditions).sort({_id:-1}).limit(Number(limit)).toArray()
-                            : await db.collection('messages').find(conditions).sort({_id:-1}).toArray();
-        res.send(messages);
+        const messages = await db.collection('messages').find(conditions).toArray();
+        // const messages = limit ? await db.collection('messages').find(conditions).sort({_id:-1}).limit(Number(limit)).toArray()
+        //                     : await db.collection('messages').find(conditions).sort({_id:-1}).toArray();
+        (limit) ? res.send(messages.slice(-limit)) : res.send(messages);
     } catch (error) {
         res.status(500).send(error.message);
     }

@@ -22,29 +22,22 @@ try {
 }
 const db = mongoClient.db();
 
-//Validation
-const schemaName = Joi.object({
-    name: Joi.string()
-        .min(1)
-        .required(),
-});
-
-const schemaMessage = Joi.object({
-    from: Joi.string().required(),
-    to: Joi.string().min(1).required(),
-    text: Joi.string().min(1).required(),
-    type: Joi.any().valid('message', 'private_message').required(),
-    time: Joi.required(),
-});
-
-const schemaLimit = Joi.string().regex(/^[1-9][0-9]*$/);
-
 //EndPoints
 app.post("/participants", async (req, res) => {
     const { name } = req.body;
 
-    const { error } = schemaName.validate({ name });
-    if (error) return res.status(422).send(error.details[0].message);
+    const schemaName = Joi.object({
+        name: Joi.string()
+            .min(1)
+            .required(),
+    });
+
+    const { error } = schemaName.validate({ name }, {abortEarly: false});
+
+    if(error){
+        const errors = error.details.map( (detail) => detail.message);
+        return res.status(422).send(errors);
+    }
 
     try {
         const nameUsed = await db.collection('participants').findOne({ name: name });
@@ -75,8 +68,21 @@ app.post("/messages", async (req, res) => {
         type,
         time: dayjs().format('HH:mm:ss')
     };
-    const { error } = schemaMessage.validate(message);
-    if (error) return res.status(422).send(error.details[0].message);
+
+    const schemaMessage = Joi.object({
+        from: Joi.string().required(),
+        to: Joi.string().min(1).required(),
+        text: Joi.string().min(1).required(),
+        type: Joi.any().valid('message', 'private_message').required(),
+        time: Joi.required(),
+    });
+
+    const { error } = schemaMessage.validate(message, {abortEarly: false});
+
+    if(error){
+        const errors = error.details.map( (detail) => detail.message);
+        return res.status(422).send(errors);
+    }
 
     try {
         const sender = await db.collection('participants').findOne({ name: from });
@@ -103,8 +109,13 @@ app.get("/messages", async (req, res) => {
     const user = req.headers.user;
     const { limit } = req.query;
 
-    const { error } = schemaLimit.validate(limit);
-    if (error) return res.status(422).send("Valor inválido para o limite de mensagens.");
+    const schemaLimit = Joi.string().regex(/^[1-9][0-9]*$/);
+    
+    const { error } = schemaLimit.validate(limit, {abortEarly: false});
+    if(error){
+        const errors = error.details.map( (detail) => detail.message);
+        return res.status(422).send(errors);
+    }
 
     try {
         const conditions = {
@@ -124,8 +135,6 @@ app.get("/messages", async (req, res) => {
             ]
         };
         const messages = await db.collection('messages').find(conditions).toArray();
-        // const messages = limit ? await db.collection('messages').find(conditions).sort({_id:-1}).limit(Number(limit)).toArray()
-        //                     : await db.collection('messages').find(conditions).sort({_id:-1}).toArray();
         (limit) ? res.send(messages.slice(-limit)) : res.send(messages);
     } catch (error) {
         res.status(500).send(error.message);
@@ -174,7 +183,7 @@ setInterval(async () => {
             await db.collection('messages').insertOne({
                 from: user.name,
                 to: 'Todos',
-                text: 'sai na sala...',
+                text: 'sai da sala...',
                 type: 'status',
                 time: dayjs().format('HH:mm:ss')
             });

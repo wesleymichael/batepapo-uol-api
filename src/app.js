@@ -32,12 +32,19 @@ const schemaMessage = Joi.object({
     time: Joi.required(),
 });
 
+function isString(to, text, type, from){
+    if(typeof to === "string" && typeof text === "string" && typeof type === "string" && typeof from === "string"){
+        return true;
+    } else {
+        return false;
+    }
+}
+
 //EndPoints
 app.post("/participants", async (req, res) => {
     let name = req.body.name;
 
-    if(name){
-            name = stripHtml(name).result.trim();
+    if(typeof name === "string"){
         try{
             name = stripHtml(name).result.trim();
         } catch (error) {
@@ -81,7 +88,8 @@ app.post("/messages", async (req, res) => {
     const from = req.headers.user;
     
     let message = {from, to, text, type,  time: dayjs().format('HH:mm:ss')};
-    if(to && text && type && from){
+
+    if( isString(to, text, type, from) ){
         try{
             message = {
                 from: stripHtml(from).result.trim(),

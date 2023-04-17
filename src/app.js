@@ -4,6 +4,7 @@ import { MongoClient, ObjectId } from "mongodb";
 import dotenv from "dotenv";
 import Joi from "joi";
 import dayjs from "dayjs";
+import { stripHtml } from "string-strip-html";
 
 const app = express();
 
@@ -33,7 +34,13 @@ const schemaMessage = Joi.object({
 
 //EndPoints
 app.post("/participants", async (req, res) => {
-    const { name } = req.body;
+    let name = req.body.name;
+
+    try{
+        name = stripHtml(name).result.trim();
+    } catch (error) {
+        return res.status(500).send("Erro ao sanitizar o nome do participante.");
+    }
 
     const schemaName = Joi.object({
         name: Joi.string()
@@ -69,14 +76,19 @@ app.post("/participants", async (req, res) => {
 app.post("/messages", async (req, res) => {
     const { to, text, type } = req.body;
     const from = req.headers.user;
-
-    const message = {
-        from,
-        to,
-        text,
-        type,
-        time: dayjs().format('HH:mm:ss')
-    };
+    
+    let message = {};
+    try{
+        message = {
+            from: stripHtml(from).result.trim(),
+            to: stripHtml(to).result.trim(),
+            text: stripHtml(text).result.trim(),
+            type: stripHtml(type).result.trim(),
+            time: dayjs().format('HH:mm:ss')
+        };
+    } catch (error) {
+        return res.status(500).send("Erro ao sanitizar a mensagem");
+    }
 
     const { error } = schemaMessage.validate(message, {abortEarly: false});
 
@@ -88,7 +100,9 @@ app.post("/messages", async (req, res) => {
     try {
         const sender = await db.collection('participants').findOne({ name: from });
 
-        if (!sender) return res.status(422).send("Usuário não encontrado.");
+        if (!sender){
+            return res.status(422).send("Usuário não encontrado.");
+        }
 
         await db.collection('messages').insertOne(message);
         res.sendStatus(201);
@@ -107,7 +121,7 @@ app.get("/participants", async (req, res) => {
 });
 
 app.get("/messages", async (req, res) => {
-    const user = req.headers.user;
+    const user = req.headers.user.trim;
     const { limit } = req.query;
 
     const schemaLimit = Joi.string().regex(/^[1-9][0-9]*$/);
@@ -143,7 +157,7 @@ app.get("/messages", async (req, res) => {
 });
 
 app.post("/status", async (req, res) => {
-    const user = req.headers.user;
+    const user = req.headers.user.trim();
     if (!user) return res.sendStatus(404);
 
     try {
@@ -156,7 +170,7 @@ app.post("/status", async (req, res) => {
 });
 
 app.delete("/messages/:id", async (req, res) => {
-    const from = req.headers.user;
+    const from = req.headers.user.trim();
     const id = req.params.id;
     try{
         const message = await db.collection('messages').findOne({ _id: new ObjectId(id)});
@@ -177,13 +191,18 @@ app.put("/messages/:id", async (req, res) => {
     const from = req.headers.user;
     const id = req.params.id;
     
-    const messageUpdate = {
-        from,
-        to,
-        text,
-        type,
-        time: dayjs().format('HH:mm:ss')
-    };
+    let messageUpdate = {};
+    try{
+        messageUpdate = {
+            from: stripHtml(from).result.trim(),
+            to: stripHtml(to).result.trim(),
+            text: stripHtml(text).result.trim(),
+            type: stripHtml(type).result.trim(),
+            time: dayjs().format('HH:mm:ss')
+        };
+    } catch (error) {
+        return res.status(500).send("Erro ao sanitizar a mensagem");
+    }
 
     const { error } = schemaMessage.validate(messageUpdate, {abortEarly: false});
 
@@ -232,7 +251,7 @@ setInterval(async () => {
     } catch (error){
         console.log(error);
     }
-}, 1500000);
+}, 15000);
 
 const PORT = 5000;
 app.listen(PORT, () => console.log(`server running on port ${PORT}`));

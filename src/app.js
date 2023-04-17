@@ -36,10 +36,13 @@ const schemaMessage = Joi.object({
 app.post("/participants", async (req, res) => {
     let name = req.body.name;
 
-    try{
-        name = stripHtml(name).result.trim();
-    } catch (error) {
-        return res.status(500).send("Erro ao sanitizar o nome do participante.");
+    if(name){
+            name = stripHtml(name).result.trim();
+        try{
+            name = stripHtml(name).result.trim();
+        } catch (error) {
+            return res.status(500).send("Erro ao sanitizar o nome do participante.");
+        }
     }
 
     const schemaName = Joi.object({
@@ -77,17 +80,19 @@ app.post("/messages", async (req, res) => {
     const { to, text, type } = req.body;
     const from = req.headers.user;
     
-    let message = {};
-    try{
-        message = {
-            from: stripHtml(from).result.trim(),
-            to: stripHtml(to).result.trim(),
-            text: stripHtml(text).result.trim(),
-            type: stripHtml(type).result.trim(),
-            time: dayjs().format('HH:mm:ss')
-        };
-    } catch (error) {
-        return res.status(500).send("Erro ao sanitizar a mensagem");
+    let message = {from, to, text, type,  time: dayjs().format('HH:mm:ss')};
+    if(to && text && type && from){
+        try{
+            message = {
+                from: stripHtml(from).result.trim(),
+                to: stripHtml(to).result.trim(),
+                text: stripHtml(text).result.trim(),
+                type: stripHtml(type).result.trim(),
+                time: dayjs().format('HH:mm:ss')
+            };
+        } catch (error) {
+            return res.status(500).send("Erro ao sanitizar a mensagem.");
+        }
     }
 
     const { error } = schemaMessage.validate(message, {abortEarly: false});
@@ -121,7 +126,7 @@ app.get("/participants", async (req, res) => {
 });
 
 app.get("/messages", async (req, res) => {
-    const user = req.headers.user.trim;
+    const user = req.headers.user.trim();
     const { limit } = req.query;
 
     const schemaLimit = Joi.string().regex(/^[1-9][0-9]*$/);
@@ -191,19 +196,21 @@ app.put("/messages/:id", async (req, res) => {
     const from = req.headers.user;
     const id = req.params.id;
     
-    let messageUpdate = {};
-    try{
-        messageUpdate = {
-            from: stripHtml(from).result.trim(),
-            to: stripHtml(to).result.trim(),
-            text: stripHtml(text).result.trim(),
-            type: stripHtml(type).result.trim(),
-            time: dayjs().format('HH:mm:ss')
-        };
-    } catch (error) {
-        return res.status(500).send("Erro ao sanitizar a mensagem");
+    let messageUpdate = {from, to, text, type,  time: dayjs().format('HH:mm:ss')};
+    if(to && text && type && from){
+        try{
+            messageUpdate = {
+                from: stripHtml(from).result.trim(),
+                to: stripHtml(to).result.trim(),
+                text: stripHtml(text).result.trim(),
+                type: stripHtml(type).result.trim(),
+                time: dayjs().format('HH:mm:ss')
+            };
+        } catch (error) {
+            return res.status(500).send("Erro ao sanitizar a mensagem");
+        }
     }
-
+    
     const { error } = schemaMessage.validate(messageUpdate, {abortEarly: false});
 
     if(error){

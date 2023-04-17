@@ -22,6 +22,15 @@ try {
 }
 const db = mongoClient.db();
 
+//Validation
+const schemaMessage = Joi.object({
+    from: Joi.string().required(),
+    to: Joi.string().min(1).required(),
+    text: Joi.string().min(1).required(),
+    type: Joi.any().valid('message', 'private_message').required(),
+    time: Joi.required(),
+});
+
 //EndPoints
 app.post("/participants", async (req, res) => {
     const { name } = req.body;
@@ -68,14 +77,6 @@ app.post("/messages", async (req, res) => {
         type,
         time: dayjs().format('HH:mm:ss')
     };
-
-    const schemaMessage = Joi.object({
-        from: Joi.string().required(),
-        to: Joi.string().min(1).required(),
-        text: Joi.string().min(1).required(),
-        type: Joi.any().valid('message', 'private_message').required(),
-        time: Joi.required(),
-    });
 
     const { error } = schemaMessage.validate(message, {abortEarly: false});
 
@@ -154,9 +155,9 @@ app.post("/status", async (req, res) => {
     }
 });
 
-app.delete("/messages/:ID_DA_MENSAGEM", async (req, res) => {
+app.delete("/messages/:id", async (req, res) => {
     const from = req.headers.user;
-    const id = req.params.ID_DA_MENSAGEM;
+    const id = req.params.id;
     try{
         const message = await db.collection('messages').findOne({ _id: new ObjectId(id)});
 
@@ -167,6 +168,46 @@ app.delete("/messages/:ID_DA_MENSAGEM", async (req, res) => {
         await db.collection('messages').deleteOne({ _id: new ObjectId(id)});
         res.sendStatus(200);
     } catch (error){
+        res.status(500).send(error.message);
+    }
+});
+
+app.put("/messages/:id", async (req, res) => {
+    const { to, text, type } = req.body;
+    const from = req.headers.user;
+    const id = req.params.id;
+    
+    const messageUpdate = {
+        from,
+        to,
+        text,
+        type,
+        time: dayjs().format('HH:mm:ss')
+    };
+
+    const { error } = schemaMessage.validate(messageUpdate, {abortEarly: false});
+
+    if(error){
+        const errors = error.details.map( (detail) => detail.message);
+        return res.status(422).send(errors);
+    }
+
+    try{
+        const sender = await db.collection('participants').findOne({ name: from });
+        if (!sender) return res.status(422).send("Usuário não encontrado.");
+
+        const message = await db.collection('messages').findOne({ _id: new ObjectId(id)});
+
+        if(!message) return res.status(404).send('Mensagem não encontrada');
+
+        if(from !== message.from) return res.status(401).send('Usuário não autorizado a deletar mensagem');
+
+        await db.collection("messages").updateOne(
+            { _id: new ObjectId(id) },
+            { $set: messageUpdate }
+        );
+        res.send("Mensagem editada");
+    } catch (error) {
         res.status(500).send(error.message);
     }
 });
@@ -191,7 +232,7 @@ setInterval(async () => {
     } catch (error){
         console.log(error);
     }
-}, 15000);
+}, 1500000);
 
 const PORT = 5000;
 app.listen(PORT, () => console.log(`server running on port ${PORT}`));
